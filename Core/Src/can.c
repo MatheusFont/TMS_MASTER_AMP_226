@@ -8,6 +8,9 @@
 #include "can.h"
 #include "string.h"
 
+extern bool simulateHighTemp;
+extern bool simulateCommLoss;
+
 extern FDCAN_HandleTypeDef hfdcan1;
 uint8_t FDCAN1RxData[8];
 FDCAN_RxHeaderTypeDef FDCAN1RxHeader;
@@ -52,9 +55,15 @@ void processSlaveBurst(uint8_t slave, uint8_t burst){
 	uint8_t index = burst * 2;
 
 	slaveTempBuffers[slave][index]     = temp1;
-	slaveTempBuffers[slave][index + 1] = temp2;
+	if(index + 1 < thermistorsRecieved)
+	{
+	 slaveTempBuffers[slave][index + 1] = temp2;
+	}
 
-	*slaveLastMessageTicks[slave] = HAL_GetTick();
+	if(!simulateCommLoss)
+	{
+		*slaveLastMessageTicks[slave] = HAL_GetTick();
+	}
 }
 
 void receiveCANFromSlaves(){
@@ -81,22 +90,52 @@ void receiveCANFromSlaves(){
 	}
 }
 
-void sendMasterInfoToCAN(int temp1, int temp2, int temp3, int temp4, int error){
+void sendMasterInfoToCAN(int temps[], uint8_t error){
 	FDCAN2TxHeader.DataLength = FDCAN_DLC_BYTES_8;
 	FDCAN2TxHeader.Identifier = idMaster;
 
 	FDCAN2TxData[0] = error;
-	FDCAN2TxData[1] = temp1;
-	FDCAN2TxData[2] = temp2;
-	FDCAN2TxData[3] = temp3;
-	FDCAN2TxData[4] = temp4;
+
+	for(uint8_t slave = 0; slave < numberOfSlaves; slave++)
+	{
+		FDCAN2TxData[slave + 1] = temps[slave];
+	}
+	for(uint8_t i = numberOfSlaves + 1; i < 8; i++)
+	{
+		FDCAN2TxData[i] = 0;
+	}
+	uint8_t retry = 0;
 
 	while(HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan2, &FDCAN2TxHeader, FDCAN2TxData) != HAL_OK){
-		static int retry = 0;
+
 		retry++;
-		if(retry>=20){
+
+		if(retry>=20)
+		{
 			Error_Handler();
 		}
 	}
 }
+void processSlaveTemperatures()
+{
+    int maxTemps[numberOfSlaves];
 
+    for(uint8_t slave = 0; slave < numberOfSlaves; slave++)
+    {
+        maxTemps[slave] = findMaxVal(slaveTempBuffers[slave]);
+
+        if(simulateHighTemp)
+        {
+        	maxTemps[slave] = maxTemperatureThreshold + 10;
+        }
+
+        if(maxTemps[slave] > maxTemperatureThreshold)
+        {
+        	tmsErrorCode = overTemperatureFault;
+        	Error_Handler();
+        }
+
+    }
+
+    sendMasterInfoToCAN(maxTemps, tmsErrorCode);
+}

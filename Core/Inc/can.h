@@ -10,6 +10,7 @@
 
 #include "errors.h"
 #include "main.h"
+#include "stdbool.h"
 
 #define numberOfSlaves 4
 #define idMaster 0x00A
@@ -29,6 +30,7 @@
 
 void processSlaveBurst(uint8_t slave, uint8_t burst);
 void receiveCANFromSlaves();
-void sendMasterInfoToCAN(int temp1, int temp2, int temp3, int temp4, int error);
+void sendMasterInfoToCAN(int temps[], uint8_t error);
+void processSlaveTemperatures();
 
 #endif /* INC_CAN_H_ */

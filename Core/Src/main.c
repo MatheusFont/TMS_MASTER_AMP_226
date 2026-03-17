@@ -22,8 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "can.h"
 #include "errors.h"
+#include "can.h"
 #include "adc.h"
 #include <stdbool.h>
 /* USER CODE END Includes */
@@ -85,10 +85,12 @@ extern float slave1TempBuffer[thermistorsRecieved], slave2TempBuffer[thermistors
 
 extern uint32_t slave1LastMessageTick, slave2LastMessageTick, slave3LastMessageTick, slave4LastMessageTick;
 
-uint32_t rawAdcBuffer[numberOfThermistors] = {0}; filteredAdcBuffer[numberOfThermistors] = {0};
+extern uint32_t* slaveLastMessageTicks[4];
+
+uint16_t filteredAdcBuffer[numberOfThermistors];
+uint16_t rawAdcBuffer[numberOfThermistors] = {0};
 float voltageBuffer[numberOfThermistors] = {0}, tempBuffer[numberOfThermistors] = {0};
 
-extern uint8_t FDCAN1TxData[8];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -495,17 +497,8 @@ void xSendCANFunction(void *argument)
   /* Infinite loop */
   for(;;)
   {
-	  sendMasterInfoToCAN(findMaxVal(slave1TempBuffer), findMaxVal(slave2TempBuffer),
-			  findMaxVal(slave3TempBuffer), findMaxVal(slave4TempBuffer), tmsErrorCode);
-
-	  injectFault(findMaxVal(slave1TempBuffer));
-
-	  if((findMaxVal(slave1TempBuffer) > maxTemperatureThreshold) || (findMaxVal(slave2TempBuffer) > maxTemperatureThreshold)
-		|| (findMaxVal(slave3TempBuffer) > maxTemperatureThreshold) || (findMaxVal(slave4TempBuffer) > maxTemperatureThreshold))
-	  {
-		  tmsErrorCode = overTemperatureFault;
-		  Error_Handler();
-	  }
+	  processSlaveTemperatures();
+	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_14);
     osDelay(100);
   }
   /* USER CODE END 5 */
@@ -526,12 +519,13 @@ void xCheckCommsFuncion(void *argument)
   for(;;)
   {
 	  atualTick = HAL_GetTick();
-	  if((atualTick-slave1LastMessageTick>2000)|| (atualTick-slave2LastMessageTick>2000)
-	  || (atualTick-slave3LastMessageTick>2000) || (atualTick-slave4LastMessageTick>2000))
-	  {
-		  tmsErrorCode = commFault;
-		  Error_Handler();
+	  for(uint8_t slave = 0; slave < numberOfSlaves; slave++){
+		  if(atualTick - *slaveLastMessageTicks[slave] > SLAVE_COMM_TIMEOUT_MS){
+			  tmsErrorCode = commFault;
+			  Error_Handler();
+		  }
 	  }
+	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13); // trocar
     osDelay(1000);
   }
   /* USER CODE END xCheckCommsFuncion */

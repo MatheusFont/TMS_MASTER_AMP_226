@@ -10,10 +10,13 @@
 
 #include "can.h"
 #include "main.h"
+#include "stdbool.h"
 
 #define commFault 1<<0
 #define overTemperatureFault 1<<1
 #define thermistorConnectionFault 1<<2
+
+#define SLAVE_COMM_TIMEOUT_MS 2000
 
 #define maxTemperatureThreshold 60
 

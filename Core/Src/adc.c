@@ -9,7 +9,8 @@
 #include "adc.h"
 #include "stdio.h"
 
-uint16_t filteredAdcBuffer[numberOfThermistors] = {0}, medianBuffer[numberOfThermistors][3] = {0};
+extern uint16_t filteredAdcBuffer[numberOfThermistors];
+uint16_t medianBuffer[numberOfThermistors][3] = {0};
 uint8_t medianIndex[numberOfThermistors];
 
 uint16_t median3(uint16_t a, uint16_t b, uint16_t c)
